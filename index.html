@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>IMJ Controle</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #F6F9FB;
+    color: #212529;
+    padding-bottom: 40px;
+  }
+  .cache { display: none; }
+  .visible { display: block; }
+  header {
+    background: #002A7D;
+    color: white;
+    padding: 16px 20px;
+  }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .sous-titre { font-size: 12px; opacity: 0.8; }
+  main { padding: 16px; max-width: 480px; margin: 0 auto; }
+  .carte {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #E4E9F0;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .carte h2 { font-size: 16px; margin-bottom: 12px; color: #0548B3; }
+  label { display: block; font-size: 13px; color: #212529; margin: 10px 0 4px; }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #E4E9F0;
+    border-radius: 8px;
+    font-size: 15px;
+    background: #F2F2F1;
+  }
+  button {
+    width: 100%;
+    padding: 13px;
+    background: #005FDE;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 14px;
+    cursor: pointer;
+  }
+  button.secondaire { background: transparent; color: #0548B3; border: 1px solid #0548B3; }
+  button.rouge { background: #DC2945; }
+  button.petit { padding: 8px; font-size: 13px; margin-top: 8px; }
+  .erreur { color: #DC2945; font-size: 13px; margin-top: 8px; }
+  .succes { color: #0D581A; font-size: 13px; margin-top: 8px; }
+  .cycle-bloc {
+    border: 1.5px dashed #005FDE;
+    border-radius: 10px;
+    padding: 12px;
+    margin-top: 12px;
+    background: #F6F9FB;
+  }
+  .cycle-bloc h3 { font-size: 14px; color: #005FDE; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .cycle-bloc h3 button.retirer { width: auto; padding: 4px 10px; font-size: 11px; background: #DC2945; margin: 0; }
+  .credit-bloc { border-top: 1px solid #E4E9F0; margin-top: 10px; padding-top: 10px; }
+  .checkbox-ligne { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+  .checkbox-ligne input { width: auto; }
+  .checkbox-ligne label { margin: 0; }
+  .ligne-attente {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #E4E9F0;
+    font-size: 13px;
+  }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #E99A0C; color: white; }
+  .badge.ok { background: #0D581A; }
+  .badge.erreur { background: #DC2945; }
+</style>
+</head>
+<body>
+
+<div id="ecran-connexion" class="visible">
+  <main style="padding-top: 60px;">
+    <div class="carte">
+      <h2 style="text-align:center; font-size:20px;">IMJ Controle</h2>
+      <p style="font-size:12px; color:#9B9CA1; text-align:center; margin-bottom:10px;">Outil separe du mobile agents -- reserve a l'administration</p>
+      <label>Mot de passe</label>
+      <input type="password" id="login-mdp">
+      <button onclick="seConnecter()">Se connecter</button>
+      <p id="login-message" class="erreur"></p>
+      <p style="font-size:12px; color:#9B9CA1; margin-top:14px;">Premiere connexion : internet requis. Ensuite, fonctionne hors ligne.</p>
+    </div>
+  </main>
+</div>
+
+<div id="ecran-app" class="cache">
+  <header>
+    <h1>IMJ Controle</h1>
+    <div class="sous-titre">Saisie carnet par carnet</div>
+  </header>
+
+  <main>
+    <div class="carte">
+      <h2>Carnet</h2>
+      <label>Carnet deja connu (choisis dans la liste) ou tape un nouveau numero</label>
+      <input type="text" id="rc-numero-carnet" list="liste-carnets-connus" placeholder="ex: 3045" oninput="preRemplirCarnetConnu()">
+      <datalist id="liste-carnets-connus"></datalist>
+      <label>Type</label>
+      <select id="rc-type-carnet">
+        <option value="ordinaire">Ordinaire</option>
+        <option value="bloque">Bloque</option>
+      </select>
+      <label>Categorie</label>
+      <select id="rc-categorie">
+        <option value="senior">Senior</option>
+        <option value="junior">Junior</option>
+      </select>
+      <label>Agent responsable</label>
+      <select id="rc-code-agent">
+        <option value="AG001">AG001</option>
+        <option value="AG002">AG002</option>
+        <option value="CS001">CS001</option>
+      </select>
+    </div>
+
+    <div class="carte">
+      <h2>Client</h2>
+      <div class="checkbox-ligne">
+        <input type="checkbox" id="rc-client-existant">
+        <label for="rc-client-existant">Client deja existant dans IMJ (chercher par telephone)</label>
+      </div>
+      <div id="rc-bloc-client-existant" class="cache">
+        <label>Telephone du client existant</label>
+        <input type="tel" id="rc-telephone-existant">
+      </div>
+      <div id="rc-bloc-nouveau-client">
+        <label>Nom</label>
+        <input type="text" id="rc-nom">
+        <label>Prenom</label>
+        <input type="text" id="rc-prenom">
+        <label>Telephone</label>
+        <input type="tel" id="rc-telephone">
+        <label>Quartier</label>
+        <input type="text" id="rc-quartier">
+      </div>
+    </div>
+
+    <div class="carte">
+      <h2>Cycles historiques</h2>
+      <p style="font-size:12px; color:#9B9CA1; margin-bottom:6px;">Ajoute un bloc par cycle passe de ce carnet, dans l'ordre chronologique (le plus ancien d'abord).</p>
+      <div id="rc-liste-cycles"></div>
+      <button type="button" class="secondaire petit" onclick="ajouterBlocCycle()">+ Ajouter un cycle</button>
+    </div>
+
+    <button onclick="enregistrerReprise()">Enregistrer ce carnet</button>
+    <p id="rc-message" class="erreur"></p>
+
+    <div class="carte" style="margin-top:20px;">
+      <h2>En attente de synchronisation</h2>
+      <div id="rc-liste-attente"></div>
+      <button class="secondaire" onclick="synchroniser()">Synchroniser maintenant</button>
+      <p id="rc-sync-message" class="succes"></p>
+    </div>
+
+    <button class="rouge" style="margin-top:20px;" onclick="seDeconnecter()">Se deconnecter</button>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = "https://kguscrexaptukrrgyymt.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndXNjcmV4YXB0dWtycmd5eW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNzc5MzksImV4cCI6MjEwMjc1MzkzOX0.lT0P_-yZUXpXqdrSYckAsRh9SWtbN3tUiuzl1Y_nvU4";
+const EMAIL_ADMIN = "admin2911@imj-mobile.local";
+
+const CARNETS_CONNUS = [
+  {numero:136,type:"ordinaire",categorie:"senior"},
+  {numero:180,type:"ordinaire",categorie:"senior"},
+  {numero:211,type:"ordinaire",categorie:"senior"},
+  {numero:216,type:"ordinaire",categorie:"senior"},
+  {numero:250,type:"ordinaire",categorie:"senior"},
+  {numero:272,type:"ordinaire",categorie:"senior"},
+  {numero:276,type:"ordinaire",categorie:"senior"},
+  {numero:285,type:"ordinaire",categorie:"senior"},
+  {numero:301,type:"ordinaire",categorie:"senior"},
+  {numero:303,type:"ordinaire",categorie:"senior"},
+  {numero:305,type:"ordinaire",categorie:"senior"},
+  {numero:370,type:"ordinaire",categorie:"senior"},
+  {numero:3000,type:"ordinaire",categorie:"senior"},
+  {numero:3001,type:"ordinaire",categorie:"senior"},
+  {numero:3008,type:"ordinaire",categorie:"senior"},
+  {numero:3009,type:"ordinaire",categorie:"senior"},
+  {numero:3010,type:"ordinaire",categorie:"senior"},
+  {numero:3014,type:"ordinaire",categorie:"senior"},
+  {numero:3021,type:"ordinaire",categorie:"senior"},
+  {numero:3047,type:"ordinaire",categorie:"senior"},
+  {numero:3048,type:"ordinaire",categorie:"senior"},
+  {numero:3053,type:"ordinaire",categorie:"senior"},
+  {numero:3056,type:"ordinaire",categorie:"senior"},
+  {numero:3058,type:"ordinaire",categorie:"senior"},
+  {numero:3062,type:"ordinaire",categorie:"senior"},
+  {numero:3065,type:"ordinaire",categorie:"senior"},
+  {numero:3067,type:"ordinaire",categorie:"senior"},
+  {numero:3068,type:"ordinaire",categorie:"senior"},
+  {numero:3070,type:"ordinaire",categorie:"senior"},
+  {numero:3071,type:"ordinaire",categorie:"senior"},
+  {numero:3072,type:"ordinaire",categorie:"senior"},
+  {numero:3073,type:"ordinaire",categorie:"senior"},
+  {numero:3074,type:"ordinaire",categorie:"senior"},
+  {numero:3075,type:"ordinaire",categorie:"senior"},
+  {numero:3077,type:"ordinaire",categorie:"senior"},
+  {numero:3079,type:"ordinaire",categorie:"senior"},
+  {numero:3080,type:"ordinaire",categorie:"senior"},
+  {numero:3084,type:"ordinaire",categorie:"senior"},
+  {numero:3087,type:"ordinaire",categorie:"senior"},
+  {numero:3090,type:"ordinaire",categorie:"senior"},
+  {numero:3100,type:"ordinaire",categorie:"senior"},
+  {numero:3101,type:"ordinaire",categorie:"senior"},
+  {numero:3103,type:"ordinaire",categorie:"senior"},
+  {numero:3104,type:"ordinaire",categorie:"senior"},
+  {numero:3105,type:"ordinaire",categorie:"senior"},
+  {numero:3106,type:"ordinaire",categorie:"junior"},
+  {numero:3107,type:"ordinaire",categorie:"senior"},
+  {numero:3109,type:"ordinaire",categorie:"senior"},
+  {numero:3110,type:"ordinaire",categorie:"senior"},
+  {numero:3111,type:"ordinaire",categorie:"senior"},
+  {numero:3112,type:"ordinaire",categorie:"senior"},
+  {numero:3113,type:"ordinaire",categorie:"senior"},
+  {numero:3115,type:"ordinaire",categorie:"senior"},
+  {numero:3116,type:"ordinaire",categorie:"senior"},
+  {numero:3117,type:"ordinaire",categorie:"senior"},
+  {numero:3118,type:"ordinaire",categorie:"junior"},
+  {numero:3119,type:"ordinaire",categorie:"senior"},
+  {numero:3121,type:"ordinaire",categorie:"senior"},
+  {numero:3123,type:"ordinaire",categorie:"senior"},
+  {numero:3124,type:"ordinaire",categorie:"senior"},
+  {numero:3126,type:"ordinaire",categorie:"senior"},
+  {numero:3128,type:"ordinaire",categorie:"senior"},
+  {numero:3129,type:"ordinaire",categorie:"senior"},
+  {numero:3130,type:"ordinaire",categorie:"senior"},
+  {numero:3131,type:"ordinaire",categorie:"senior"},
+  {numero:3132,type:"ordinaire",categorie:"senior"},
+  {numero:3135,type:"ordinaire",categorie:"senior"},
+  {numero:3137,type:"ordinaire",categorie:"junior"},
+  {numero:3138,type:"ordinaire",categorie:"senior"},
+  {numero:3139,type:"ordinaire",categorie:"junior"},
+  {numero:3141,type:"ordinaire",categorie:"junior"},
+  {numero:3142,type:"ordinaire",categorie:"senior"},
+  {numero:3145,type:"ordinaire",categorie:"senior"},
+  {numero:3146,type:"ordinaire",categorie:"senior"},
+  {numero:3147,type:"ordinaire",categorie:"junior"},
+  {numero:3148,type:"ordinaire",categorie:"senior"},
+  {numero:3149,type:"ordinaire",categorie:"junior"},
+  {numero:3150,type:"ordinaire",categorie:"senior"},
+  {numero:3153,type:"ordinaire",categorie:"senior"},
+  {numero:3155,type:"ordinaire",categorie:"senior"},
+  {numero:3156,type:"ordinaire",categorie:"senior"},
+  {numero:3157,type:"ordinaire",categorie:"senior"},
+  {numero:3159,type:"ordinaire",categorie:"senior"},
+  {numero:3161,type:"ordinaire",categorie:"senior"},
+  {numero:3162,type:"ordinaire",categorie:"senior"},
+  {numero:3163,type:"ordinaire",categorie:"senior"},
+  {numero:3164,type:"ordinaire",categorie:"senior"},
+  {numero:3165,type:"ordinaire",categorie:"senior"},
+  {numero:3166,type:"ordinaire",categorie:"senior"},
+  {numero:3167,type:"ordinaire",categorie:"senior"},
+  {numero:3168,type:"ordinaire",categorie:"senior"},
+  {numero:3169,type:"ordinaire",categorie:"senior"},
+  {numero:3170,type:"ordinaire",categorie:"senior"},
+  {numero:3171,type:"ordinaire",categorie:"senior"},
+  {numero:3172,type:"ordinaire",categorie:"senior"},
+  {numero:3173,type:"ordinaire",categorie:"senior"},
+  {numero:3174,type:"ordinaire",categorie:"senior"},
+  {numero:3175,type:"ordinaire",categorie:"senior"},
+  {numero:3176,type:"ordinaire",categorie:"senior"},
+  {numero:3177,type:"ordinaire",categorie:"senior"},
+  {numero:3178,type:"ordinaire",categorie:"senior"},
+  {numero:3179,type:"ordinaire",categorie:"senior"},
+  {numero:3180,type:"ordinaire",categorie:"junior"},
+  {numero:3181,type:"ordinaire",categorie:"senior"},
+  {numero:3182,type:"ordinaire",categorie:"senior"},
+  {numero:3183,type:"ordinaire",categorie:"senior"},
+  {numero:3184,type:"ordinaire",categorie:"senior"},
+  {numero:3185,type:"ordinaire",categorie:"senior"},
+  {numero:3186,type:"ordinaire",categorie:"senior"},
+  {numero:3187,type:"ordinaire",categorie:"senior"},
+  {numero:3188,type:"ordinaire",categorie:"senior"},
+  {numero:3189,type:"ordinaire",categorie:"senior"},
+  {numero:3190,type:"ordinaire",categorie:"senior"},
+  {numero:3191,type:"ordinaire",categorie:"senior"},
+  {numero:3193,type:"ordinaire",categorie:"senior"},
+  {numero:3194,type:"ordinaire",categorie:"senior"},
+  {numero:3195,type:"ordinaire",categorie:"senior"},
+  {numero:3196,type:"ordinaire",categorie:"senior"},
+  {numero:3197,type:"ordinaire",categorie:"senior"},
+  {numero:3198,type:"ordinaire",categorie:"senior"},
+  {numero:3199,type:"ordinaire",categorie:"senior"},
+  {numero:3215,type:"ordinaire",categorie:"senior"},
+  {numero:3250,type:"ordinaire",categorie:"senior"},
+  {numero:3251,type:"ordinaire",categorie:"senior"},
+  {numero:3252,type:"ordinaire",categorie:"senior"},
+  {numero:3253,type:"ordinaire",categorie:"senior"},
+  {numero:3254,type:"ordinaire",categorie:"senior"},
+  {numero:3255,type:"ordinaire",categorie:"senior"},
+  {numero:3258,type:"ordinaire",categorie:"senior"},
+  {numero:3260,type:"ordinaire",categorie:"senior"},
+  {numero:3261,type:"ordinaire",categorie:"senior"},
+  {numero:3262,type:"ordinaire",categorie:"senior"},
+  {numero:3263,type:"ordinaire",categorie:"senior"},
+  {numero:3264,type:"ordinaire",categorie:"senior"},
+  {numero:3265,type:"ordinaire",categorie:"senior"},
+  {numero:3266,type:"ordinaire",categorie:"senior"},
+  {numero:3267,type:"ordinaire",categorie:"senior"},
+  {numero:3268,type:"ordinaire",categorie:"senior"},
+  {numero:3269,type:"ordinaire",categorie:"senior"},
+  {numero:3270,type:"ordinaire",categorie:"senior"},
+  {numero:3271,type:"ordinaire",categorie:"senior"},
+  {numero:3272,type:"ordinaire",categorie:"senior"},
+  {numero:3273,type:"ordinaire",categorie:"senior"},
+  {numero:3274,type:"ordinaire",categorie:"senior"},
+  {numero:3275,type:"ordinaire",categorie:"senior"},
+  {numero:3276,type:"ordinaire",categorie:"senior"},
+  {numero:3277,type:"ordinaire",categorie:"senior"},
+  {numero:3278,type:"ordinaire",categorie:"senior"},
+  {numero:3279,type:"ordinaire",categorie:"senior"},
+  {numero:3280,type:"ordinaire",categorie:"senior"},
+  {numero:3281,type:"ordinaire",categorie:"senior"},
+  {numero:3282,type:"ordinaire",categorie:"senior"},
+  {numero:3283,type:"ordinaire",categorie:"senior"},
+  {numero:3284,type:"ordinaire",categorie:"senior"},
+  {numero:3285,type:"ordinaire",categorie:"senior"},
+  {numero:3287,type:"ordinaire",categorie:"senior"},
+  {numero:3288,type:"ordinaire",categorie:"senior"},
+  {numero:3289,type:"ordinaire",categorie:"senior"},
+  {numero:3291,type:"ordinaire",categorie:"senior"},
+  {numero:3292,type:"ordinaire",categorie:"senior"},
+  {numero:3293,type:"ordinaire",categorie:"senior"},
+  {numero:3294,type:"ordinaire",categorie:"senior"},
+  {numero:3295,type:"ordinaire",categorie:"senior"},
+  {numero:3296,type:"ordinaire",categorie:"senior"},
+  {numero:3297,type:"ordinaire",categorie:"junior"},
+  {numero:3298,type:"ordinaire",categorie:"senior"},
+  {numero:3299,type:"ordinaire",categorie:"senior"},
+  {numero:3300,type:"ordinaire",categorie:"senior"},
+  {numero:3301,type:"ordinaire",categorie:"senior"},
+  {numero:3302,type:"ordinaire",categorie:"senior"},
+  {numero:3303,type:"ordinaire",categorie:"senior"},
+  {numero:3306,type:"ordinaire",categorie:"senior"},
+  {numero:3307,type:"ordinaire",categorie:"senior"},
+  {numero:3309,type:"ordinaire",categorie:"senior"},
+  {numero:3312,type:"ordinaire",categorie:"junior"},
+  {numero:3313,type:"ordinaire",categorie:"junior"},
+  {numero:3315,type:"ordinaire",categorie:"senior"},
+  {numero:3318,type:"ordinaire",categorie:"senior"},
+  {numero:3319,type:"ordinaire",categorie:"senior"},
+  {numero:3321,type:"ordinaire",categorie:"senior"},
+  {numero:3322,type:"ordinaire",categorie:"senior"},
+  {numero:3323,type:"ordinaire",categorie:"senior"},
+  {numero:3324,type:"ordinaire",categorie:"senior"},
+  {numero:3325,type:"ordinaire",categorie:"senior"},
+  {numero:3326,type:"ordinaire",categorie:"senior"},
+  {numero:3327,type:"ordinaire",categorie:"senior"},
+  {numero:3328,type:"ordinaire",categorie:"senior"},
+  {numero:3329,type:"ordinaire",categorie:"senior"},
+  {numero:26002,type:"bloque",categorie:"senior"},
+  {numero:26007,type:"bloque",categorie:"senior"},
+  {numero:26010,type:"bloque",categorie:"senior"},
+  {numero:26011,type:"bloque",categorie:"senior"},
+  {numero:26015,type:"bloque",categorie:"senior"},
+  {numero:26016,type:"bloque",categorie:"senior"},
+  {numero:26017,type:"bloque",categorie:"senior"},
+  {numero:26018,type:"bloque",categorie:"senior"},
+  {numero:26021,type:"bloque",categorie:"senior"},
+  {numero:26025,type:"bloque",categorie:"senior"},
+  {numero:26026,type:"bloque",categorie:"senior"},
+  {numero:26027,type:"bloque",categorie:"senior"},
+  {numero:26040,type:"bloque",categorie:"senior"},
+  {numero:26042,type:"bloque",categorie:"senior"},
+  {numero:26044,type:"bloque",categorie:"senior"},
+  {numero:26051,type:"bloque",categorie:"senior"},
+  {numero:26055,type:"bloque",categorie:"senior"},
+  {numero:26060,type:"bloque",categorie:"senior"},
+  {numero:26070,type:"bloque",categorie:"senior"},
+  {numero:26072,type:"bloque",categorie:"senior"},
+  {numero:26078,type:"bloque",categorie:"senior"},
+  {numero:26086,type:"bloque",categorie:"senior"}
+];
+
+let bdLocale;
+let compteurCycles = 0;
+
+function ouvrirBaseLocale() {
+  return new Promise((resolve, reject) => {
+    const requete = indexedDB.open("imj_reprise_terrain", 1);
+    requete.onupgradeneeded = (e) => {
+      const bd = e.target.result;
+      if (!bd.objectStoreNames.contains("session")) bd.createObjectStore("session", { keyPath: "cle" });
+      if (!bd.objectStoreNames.contains("reprises")) bd.createObjectStore("reprises", { keyPath: "id_local" });
+    };
+    requete.onsuccess = (e) => { bdLocale = e.target.result; resolve(); };
+    requete.onerror = () => reject();
+  });
+}
+
+function stockerObjet(magasin, objet) {
+  return new Promise((resolve) => {
+    const tx = bdLocale.transaction(magasin, "readwrite");
+    tx.objectStore(magasin).put(objet);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+function lireObjet(magasin, cle) {
+  return new Promise((resolve) => {
+    const tx = bdLocale.transaction(magasin, "readonly");
+    const requete = tx.objectStore(magasin).get(cle);
+    requete.onsuccess = () => resolve(requete.result || null);
+    requete.onerror = () => resolve(null);
+  });
+}
+
+function listerObjets(magasin) {
+  return new Promise((resolve) => {
+    const tx = bdLocale.transaction(magasin, "readonly");
+    const requete = tx.objectStore(magasin).getAll();
+    requete.onsuccess = () => resolve(requete.result || []);
+    requete.onerror = () => resolve([]);
+  });
+}
+
+function genererUUID() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+async function obtenirTokenValide() {
+  const session = await lireObjet("session", "admin");
+  if (!session || !session.access_token) return null;
+  const maintenant = Date.now();
+  if (session.expires_at && maintenant < session.expires_at - 60000) return session.access_token;
+  try {
+    const reponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: session.refresh_token }),
+    });
+    if (!reponse.ok) return session.access_token;
+    const donnees = await reponse.json();
+    session.access_token = donnees.access_token;
+    session.refresh_token = donnees.refresh_token;
+    session.expires_at = Date.now() + donnees.expires_in * 1000;
+    await stockerObjet("session", session);
+    return session.access_token;
+  } catch (e) {
+    return session.access_token;
+  }
+}
+
+async function enTetesAuth() {
+  const token = await obtenirTokenValide();
+  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token || SUPABASE_ANON_KEY}` };
+}
+
+async function seConnecter() {
+  const motDePasse = document.getElementById("login-mdp").value;
+  const messageEl = document.getElementById("login-message");
+  messageEl.textContent = "";
+
+  if (!motDePasse) {
+    messageEl.textContent = "Mot de passe obligatoire.";
+    return;
+  }
+
+  const sessionExistante = await lireObjet("session", "admin");
+  if (sessionExistante && sessionExistante.mot_de_passe_verifie === motDePasse) {
+    afficherApp();
+    return;
+  }
+
+  try {
+    const reponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: EMAIL_ADMIN, password: motDePasse }),
+    });
+    if (!reponse.ok) {
+      messageEl.textContent = "Mot de passe incorrect.";
+      return;
+    }
+    const donnees = await reponse.json();
+    const session = {
+      cle: "admin",
+      mot_de_passe_verifie: motDePasse,
+      access_token: donnees.access_token,
+      refresh_token: donnees.refresh_token,
+      expires_at: Date.now() + donnees.expires_in * 1000,
+    };
+    await stockerObjet("session", session);
+    afficherApp();
+  } catch (erreur) {
+    messageEl.textContent = "Pas de connexion internet. Necessaire pour la premiere connexion.";
+  }
+}
+
+function seDeconnecter() {
+  document.getElementById("ecran-app").className = "cache";
+  document.getElementById("ecran-connexion").className = "visible";
+  document.getElementById("login-mdp").value = "";
+}
+
+function peuplerListeCarnetsConnus() {
+  const datalist = document.getElementById("liste-carnets-connus");
+  datalist.innerHTML = "";
+  for (const c of CARNETS_CONNUS) {
+    const option = document.createElement("option");
+    option.value = c.numero;
+    option.label = `${c.type} - ${c.categorie}`;
+    datalist.appendChild(option);
+  }
+}
+
+function preRemplirCarnetConnu() {
+  const numeroSaisi = document.getElementById("rc-numero-carnet").value.trim();
+  const carnetConnu = CARNETS_CONNUS.find((c) => String(c.numero) === numeroSaisi);
+  if (carnetConnu) {
+    document.getElementById("rc-type-carnet").value = carnetConnu.type;
+    document.getElementById("rc-categorie").value = carnetConnu.categorie;
+  }
+}
+
+function afficherApp() {
+  document.getElementById("ecran-connexion").className = "cache";
+  document.getElementById("ecran-app").className = "visible";
+  if (document.getElementById("rc-liste-cycles").children.length === 0) ajouterBlocCycle();
+  rafraichirListeAttente();
+  peuplerListeCarnetsConnus();
+}
+
+document.getElementById("rc-client-existant").addEventListener("change", (e) => {
+  document.getElementById("rc-bloc-client-existant").className = e.target.checked ? "visible" : "cache";
+  document.getElementById("rc-bloc-nouveau-client").className = e.target.checked ? "cache" : "visible";
+});
+
+function ajouterBlocCycle() {
+  compteurCycles++;
+  const id = compteurCycles;
+  const div = document.createElement("div");
+  div.className = "cycle-bloc";
+  div.id = `cycle-${id}`;
+  div.innerHTML = `
+    <h3>Cycle #${id} <button type="button" class="retirer" onclick="document.getElementById('cycle-${id}').remove()">Retirer</button></h3>
+    <label>Date de debut du cycle</label>
+    <input type="date" class="cycle-date-debut">
+    <label>Position (0-31, ordinaire) ou montant verse (bloque)</label>
+    <input type="number" class="cycle-position">
+    <label>Statut du cycle</label>
+    <select class="cycle-statut">
+      <option value="en_cours">Encore en cours</option>
+      <option value="cloture_complete">Termine (31/31), pas encore retire</option>
+      <option value="cloture_delai">Termine par delai (pas retire)</option>
+      <option value="cloture_retrait">Deja retire</option>
+      <option value="cloture_volontaire">Cloture volontairement</option>
+    </select>
+    <div class="checkbox-ligne">
+      <input type="checkbox" class="cycle-a-credit" onchange="basculerCredit(${id}, this.checked)">
+      <label>Ce cycle a eu un credit associe</label>
+    </div>
+    <div class="credit-bloc cache" id="credit-bloc-${id}">
+      <label>Type de credit</label>
+      <select class="credit-type">
+        <option value="dizaine">Dizaine</option>
+        <option value="quinzaine">Quinzaine</option>
+        <option value="mensuel">Mensuel</option>
+        <option value="x3">X3</option>
+      </select>
+      <label>Montant decaisse (F)</label>
+      <input type="number" class="credit-montant-decaisse">
+      <label>Date d'echeance</label>
+      <input type="date" class="credit-echeance">
+      <label>Solde restant actuellement (0 si deja rembourse)</label>
+      <input type="number" class="credit-solde-restant" value="0">
+    </div>
+  `;
+  document.getElementById("rc-liste-cycles").appendChild(div);
+}
+
+function basculerCredit(id, coche) {
+  document.getElementById(`credit-bloc-${id}`).className = coche ? "credit-bloc visible" : "credit-bloc cache";
+}
+
+async function enregistrerReprise() {
+  const messageEl = document.getElementById("rc-message");
+  messageEl.className = "erreur";
+
+  const numeroCarnet = document.getElementById("rc-numero-carnet").value.trim();
+  if (!numeroCarnet) {
+    messageEl.textContent = "Le numero de carnet est obligatoire.";
+    return;
+  }
+
+  const clientExistant = document.getElementById("rc-client-existant").checked;
+  let donneesClient = {};
+  if (clientExistant) {
+    const tel = document.getElementById("rc-telephone-existant").value.trim();
+    if (!tel) {
+      messageEl.textContent = "Le telephone du client existant est obligatoire.";
+      return;
+    }
+    donneesClient = { client_existant_telephone: tel };
+  } else {
+    const nom = document.getElementById("rc-nom").value.trim();
+    if (!nom) {
+      messageEl.textContent = "Le nom du nouveau client est obligatoire.";
+      return;
+    }
+    donneesClient = {
+      nom_client: nom,
+      prenom_client: document.getElementById("rc-prenom").value.trim(),
+      telephone_client: document.getElementById("rc-telephone").value.trim(),
+      quartier_client: document.getElementById("rc-quartier").value.trim(),
+    };
+  }
+
+  const blocsCycles = document.querySelectorAll(".cycle-bloc");
+  if (blocsCycles.length === 0) {
+    messageEl.textContent = "Ajoute au moins un cycle.";
+    return;
+  }
+
+  const cycles = [];
+  for (const bloc of blocsCycles) {
+    const dateDebut = bloc.querySelector(".cycle-date-debut").value;
+    const position = bloc.querySelector(".cycle-position").value;
+    if (!dateDebut || position === "") {
+      messageEl.textContent = "Chaque cycle doit avoir une date et une position/montant.";
+      return;
+    }
+    const cycle = {
+      date_debut: dateDebut,
+      position: parseInt(position),
+      statut: bloc.querySelector(".cycle-statut").value,
+      credit: null,
+    };
+    if (bloc.querySelector(".cycle-a-credit").checked) {
+      const montantDecaisse = bloc.querySelector(".credit-montant-decaisse").value;
+      const echeance = bloc.querySelector(".credit-echeance").value;
+      const soldeRestant = bloc.querySelector(".credit-solde-restant").value;
+      if (!montantDecaisse || !echeance || soldeRestant === "") {
+        messageEl.textContent = "Complete tous les champs du credit pour chaque cycle qui en a un.";
+        return;
+      }
+      cycle.credit = {
+        type_produit: bloc.querySelector(".credit-type").value,
+        montant_decaisse: parseInt(montantDecaisse),
+        echeance: echeance,
+        solde_restant: parseInt(soldeRestant),
+      };
+    }
+    cycles.push(cycle);
+  }
+
+  const idLocal = genererUUID();
+  const reprise = {
+    id_local: idLocal,
+    numero_carnet: parseInt(numeroCarnet),
+    type_carnet: document.getElementById("rc-type-carnet").value,
+    categorie: document.getElementById("rc-categorie").value,
+    code_agent: document.getElementById("rc-code-agent").value,
+    ...donneesClient,
+    cycles: cycles,
+    statut_local: "en_attente",
+  };
+
+  await stockerObjet("reprises", reprise);
+
+  messageEl.className = "succes";
+  messageEl.textContent = `Carnet ${numeroCarnet} enregistre localement (${cycles.length} cycle(s)). Sera synchronise.`;
+
+  document.getElementById("rc-numero-carnet").value = "";
+  document.getElementById("rc-nom").value = "";
+  document.getElementById("rc-prenom").value = "";
+  document.getElementById("rc-telephone").value = "";
+  document.getElementById("rc-quartier").value = "";
+  document.getElementById("rc-telephone-existant").value = "";
+  document.getElementById("rc-liste-cycles").innerHTML = "";
+  compteurCycles = 0;
+  ajouterBlocCycle();
+
+  rafraichirListeAttente();
+}
+
+async function rafraichirListeAttente() {
+  const toutes = await listerObjets("reprises");
+  const conteneur = document.getElementById("rc-liste-attente");
+  conteneur.innerHTML = "";
+
+  if (toutes.length === 0) {
+    conteneur.innerHTML = '<p style="font-size:13px; color:#9B9CA1;">Aucune saisie en attente.</p>';
+    return;
+  }
+
+  toutes.sort((a, b) => (a.numero_carnet > b.numero_carnet ? 1 : -1));
+  for (const reprise of toutes) {
+    const div = document.createElement("div");
+    div.className = "ligne-attente";
+    let classeStatut = "badge";
+    let texteStatut = "En attente";
+    if (reprise.statut_local === "importe") { classeStatut = "badge ok"; texteStatut = "Synchronise"; }
+    if (reprise.statut_local === "erreur") { classeStatut = "badge erreur"; texteStatut = "Erreur"; }
+    div.innerHTML = `<span>Carnet ${reprise.numero_carnet} (${reprise.cycles.length} cycle(s))</span><span class="${classeStatut}">${texteStatut}</span>`;
+    conteneur.appendChild(div);
+  }
+}
+
+async function synchroniser() {
+  const messageEl = document.getElementById("rc-sync-message");
+  messageEl.className = "succes";
+  messageEl.textContent = "Synchronisation en cours...";
+
+  const headers = { ...(await enTetesAuth()), "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" };
+
+  const toutes = await listerObjets("reprises");
+  const enAttente = toutes.filter((r) => r.statut_local !== "importe");
+
+  let envoyes = 0;
+  let echecs = 0;
+
+  for (const reprise of enAttente) {
+    try {
+      const corps = {
+        id_local: reprise.id_local,
+        numero_carnet: reprise.numero_carnet,
+        type_carnet: reprise.type_carnet,
+        categorie: reprise.categorie,
+        code_agent: reprise.code_agent,
+        client_existant_telephone: reprise.client_existant_telephone || null,
+        nom_client: reprise.nom_client || null,
+        prenom_client: reprise.prenom_client || null,
+        telephone_client: reprise.telephone_client || null,
+        quartier_client: reprise.quartier_client || null,
+        cycles_json: reprise.cycles,
+      };
+      const reponse = await fetch(`${SUPABASE_URL}/rest/v1/reprise_terrain_mivoo?on_conflict=id_local`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(corps),
+      });
+      if (reponse.ok) {
+        reprise.statut_local = "importe";
+        await stockerObjet("reprises", reprise);
+        envoyes++;
+      } else {
+        echecs++;
+      }
+    } catch (e) {
+      echecs++;
+    }
+  }
+
+  messageEl.textContent = `${envoyes} carnet(s) synchronise(s), ${echecs} echec(s).`;
+  rafraichirListeAttente();
+}
+
+(async () => {
+  await ouvrirBaseLocale();
+  const session = await lireObjet("session", "admin");
+  if (session) afficherApp();
+})();
+</script>
+</body>
+</html>
