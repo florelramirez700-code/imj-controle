@@ -558,6 +558,8 @@ function ajouterBlocCycle() {
     <h3>Cycle #${id} <button type="button" class="retirer" onclick="document.getElementById('cycle-${id}').remove()">Retirer</button></h3>
     <label>Date de debut du cycle</label>
     <input type="date" class="cycle-date-debut">
+    <label>Mise journaliere (F)</label>
+    <input type="number" class="cycle-mise-journaliere" placeholder="ex: 1000">
     <label>Position (0-31, ordinaire) ou montant verse (bloque)</label>
     <input type="number" class="cycle-position">
     <label>Statut du cycle</label>
@@ -637,13 +639,15 @@ async function enregistrerReprise() {
   const cycles = [];
   for (const bloc of blocsCycles) {
     const dateDebut = bloc.querySelector(".cycle-date-debut").value;
+    const miseJournaliere = bloc.querySelector(".cycle-mise-journaliere").value;
     const position = bloc.querySelector(".cycle-position").value;
-    if (!dateDebut || position === "") {
-      messageEl.textContent = "Chaque cycle doit avoir une date et une position/montant.";
+    if (!dateDebut || !miseJournaliere || position === "") {
+      messageEl.textContent = "Chaque cycle doit avoir une date, une mise journaliere, et une position/montant.";
       return;
     }
     const cycle = {
       date_debut: dateDebut,
+      mise_journaliere: parseInt(miseJournaliere),
       position: parseInt(position),
       statut: bloc.querySelector(".cycle-statut").value,
       credit: null,
