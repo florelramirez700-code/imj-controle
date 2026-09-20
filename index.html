@@ -147,6 +147,10 @@
         <input type="text" id="rc-prenom">
         <label>Telephone</label>
         <input type="tel" id="rc-telephone">
+        <div class="checkbox-ligne">
+          <input type="checkbox" id="rc-pas-de-telephone">
+          <label for="rc-pas-de-telephone">Le client n'a pas / refuse de donner un telephone</label>
+        </div>
         <label>Quartier</label>
         <input type="text" id="rc-quartier">
         <label>Profession</label>
@@ -588,6 +592,18 @@ document.getElementById("rc-client-existant").addEventListener("change", (e) => 
   document.getElementById("rc-bloc-nouveau-client").className = e.target.checked ? "cache" : "visible";
 });
 
+document.getElementById("rc-pas-de-telephone").addEventListener("change", (e) => {
+  const champTelephone = document.getElementById("rc-telephone");
+  if (e.target.checked) {
+    champTelephone.value = "";
+    champTelephone.disabled = true;
+    champTelephone.placeholder = "Identifiant genere automatiquement";
+  } else {
+    champTelephone.disabled = false;
+    champTelephone.placeholder = "";
+  }
+});
+
 function ajouterBlocCycle() {
   compteurCycles++;
   const id = compteurCycles;
@@ -615,6 +631,7 @@ function ajouterBlocCycle() {
       <label>Ce cycle a eu un credit associe</label>
     </div>
     <div class="credit-bloc cache" id="credit-bloc-${id}">
+      <p style="font-size:11px; color:#9B9CA1; margin-bottom:8px;">Attache le credit au cycle qui REMBOURSE actuellement (pas forcement celui ou il a ete pris -- ex: un Mensuel est pris a la fin d'un cycle mais se rembourse sur le SUIVANT, attache-le au suivant).</p>
       <label>Type de credit</label>
       <select class="credit-type">
         <option value="dizaine">Dizaine</option>
@@ -624,6 +641,8 @@ function ajouterBlocCycle() {
       </select>
       <label>Montant decaisse (F)</label>
       <input type="number" class="credit-montant-decaisse">
+      <label>Date a laquelle le credit a ete DONNE (peut etre differente de la date du cycle ci-dessus)</label>
+      <input type="date" class="credit-date-decaissement">
       <label>Date d'echeance</label>
       <input type="date" class="credit-echeance">
       <label>Solde restant actuellement (0 si deja rembourse)</label>
@@ -646,6 +665,7 @@ async function enregistrerReprise() {
     messageEl.textContent = "Le numero de carnet est obligatoire.";
     return;
   }
+  const typeCarnetActuel = document.getElementById("rc-type-carnet").value;
 
   const clientExistant = document.getElementById("rc-client-existant").checked;
   let donneesClient = {};
@@ -662,10 +682,30 @@ async function enregistrerReprise() {
       messageEl.textContent = "Le nom du nouveau client est obligatoire.";
       return;
     }
+
+    const pasDeTelephone = document.getElementById("rc-pas-de-telephone").checked;
+    let telephoneNouveauClient = document.getElementById("rc-telephone").value.trim();
+
+    if (pasDeTelephone) {
+      // Identifiant UNIQUE (jamais "-" partage par tout le monde) pour eviter
+      // tout faux-doublon entre 2 clients sans telephone.
+      telephoneNouveauClient = "SANS-TEL-" + genererUUID().slice(0, 8).toUpperCase();
+    } else {
+      if (!telephoneNouveauClient) {
+        messageEl.textContent = "Le telephone est obligatoire (ou coche la case si le client n'en a pas).";
+        return;
+      }
+      const telephoneNettoye = telephoneNouveauClient.replace(/[\s\-.]/g, "");
+      if (telephoneNettoye.length < 6 || !/^[0-9]+$/.test(telephoneNettoye)) {
+        messageEl.textContent = "Telephone invalide. Si le client n'a vraiment aucun telephone, coche la case ci-dessus au lieu de taper '-'.";
+        return;
+      }
+    }
+
     donneesClient = {
       nom_client: nom,
       prenom_client: document.getElementById("rc-prenom").value.trim(),
-      telephone_client: document.getElementById("rc-telephone").value.trim(),
+      telephone_client: telephoneNouveauClient,
       quartier_client: document.getElementById("rc-quartier").value.trim(),
       profession_client: document.getElementById("rc-profession").value,
     };
@@ -686,24 +726,48 @@ async function enregistrerReprise() {
       messageEl.textContent = "Chaque cycle doit avoir une date, une mise journaliere, et une position/montant.";
       return;
     }
+    const miseNombre = parseInt(miseJournaliere);
+    const positionNombre = parseInt(position);
+    if (miseNombre <= 0) {
+      messageEl.textContent = "La mise journaliere doit etre superieure a 0.";
+      return;
+    }
+    if (positionNombre < 0) {
+      messageEl.textContent = "La position/montant ne peut pas etre negatif.";
+      return;
+    }
+    if (typeCarnetActuel === "ordinaire" && positionNombre > 31) {
+      messageEl.textContent = "Pour un carnet ordinaire, la position ne peut pas depasser 31.";
+      return;
+    }
+    if (new Date(dateDebut) > new Date()) {
+      messageEl.textContent = "La date d'un cycle historique ne peut pas etre dans le futur.";
+      return;
+    }
     const cycle = {
       date_debut: dateDebut,
-      mise_journaliere: parseInt(miseJournaliere),
-      position: parseInt(position),
+      mise_journaliere: miseNombre,
+      position: positionNombre,
       statut: bloc.querySelector(".cycle-statut").value,
       credit: null,
     };
     if (bloc.querySelector(".cycle-a-credit").checked) {
       const montantDecaisse = bloc.querySelector(".credit-montant-decaisse").value;
+      const dateDecaissement = bloc.querySelector(".credit-date-decaissement").value;
       const echeance = bloc.querySelector(".credit-echeance").value;
       const soldeRestant = bloc.querySelector(".credit-solde-restant").value;
-      if (!montantDecaisse || !echeance || soldeRestant === "") {
-        messageEl.textContent = "Complete tous les champs du credit pour chaque cycle qui en a un.";
+      if (!montantDecaisse || !dateDecaissement || !echeance || soldeRestant === "") {
+        messageEl.textContent = "Complete tous les champs du credit pour chaque cycle qui en a un (y compris la date a laquelle le credit a ete donne).";
+        return;
+      }
+      if (new Date(echeance) <= new Date(dateDecaissement)) {
+        messageEl.textContent = "L'echeance du credit doit etre apres la date a laquelle il a ete donne.";
         return;
       }
       cycle.credit = {
         type_produit: bloc.querySelector(".credit-type").value,
         montant_decaisse: parseInt(montantDecaisse),
+        date_decaissement: dateDecaissement,
         echeance: echeance,
         solde_restant: parseInt(soldeRestant),
       };
@@ -732,6 +796,9 @@ async function enregistrerReprise() {
   document.getElementById("rc-nom").value = "";
   document.getElementById("rc-prenom").value = "";
   document.getElementById("rc-telephone").value = "";
+  document.getElementById("rc-pas-de-telephone").checked = false;
+  document.getElementById("rc-telephone").disabled = false;
+  document.getElementById("rc-telephone").placeholder = "";
   document.getElementById("rc-quartier").value = "";
   document.getElementById("rc-telephone-existant").value = "";
   document.getElementById("rc-liste-cycles").innerHTML = "";
