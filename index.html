@@ -477,6 +477,20 @@ function listerObjets(magasin) {
   });
 }
 
+function supprimerObjet(magasin, cle) {
+  return new Promise((resolve) => {
+    const tx = bdLocale.transaction(magasin, "readwrite");
+    tx.objectStore(magasin).delete(cle);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+async function supprimerReprise(idLocal) {
+  if (!confirm("Supprimer definitivement cette saisie en attente (pas encore synchronisee) ?")) return;
+  await supprimerObjet("reprises", idLocal);
+  rafraichirListeAttente();
+}
+
 function genererUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -826,7 +840,10 @@ async function rafraichirListeAttente() {
     let texteStatut = "En attente";
     if (reprise.statut_local === "importe") { classeStatut = "badge ok"; texteStatut = "Synchronise"; }
     if (reprise.statut_local === "erreur") { classeStatut = "badge erreur"; texteStatut = "Erreur"; }
-    div.innerHTML = `<span>Carnet ${reprise.numero_carnet} (${reprise.cycles.length} cycle(s))</span><span class="${classeStatut}">${texteStatut}</span>`;
+    const boutonSupprimer = reprise.statut_local !== "importe"
+      ? `<button type="button" onclick="supprimerReprise('${reprise.id_local}')" style="width:auto; padding:3px 9px; font-size:11px; background:#DC2945; margin:0 0 0 8px;">Suppr.</button>`
+      : "";
+    div.innerHTML = `<span>Carnet ${reprise.numero_carnet} (${reprise.cycles.length} cycle(s))</span><span style="display:flex; align-items:center;"><span class="${classeStatut}">${texteStatut}</span>${boutonSupprimer}</span>`;
     conteneur.appendChild(div);
   }
 }
