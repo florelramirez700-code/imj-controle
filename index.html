@@ -149,6 +149,46 @@
         <input type="tel" id="rc-telephone">
         <label>Quartier</label>
         <input type="text" id="rc-quartier">
+        <label>Profession</label>
+        <select id="rc-profession">
+          <option value="Commercant(e)">Commercant(e)</option>
+          <option value="Couturier(ere)">Couturier(ere)</option>
+          <option value="Enseignant(e)">Enseignant(e)</option>
+          <option value="Tailleur">Tailleur</option>
+          <option value="Coiffeur(se)">Coiffeur(se)</option>
+          <option value="Etudiant(e)">Etudiant(e)</option>
+          <option value="Eleve">Eleve</option>
+          <option value="Nourrisson">Nourrisson</option>
+          <option value="Revendeur(se)">Revendeur(se)</option>
+          <option value="Agriculteur(trice)">Agriculteur(trice)</option>
+          <option value="Artisan(e)">Artisan(e)</option>
+          <option value="Chauffeur">Chauffeur</option>
+          <option value="Macon">Macon</option>
+          <option value="Mecanicien(ne)">Mecanicien(ne)</option>
+          <option value="Boulanger(ere)">Boulanger(ere)</option>
+          <option value="Restaurateur(trice)">Restaurateur(trice)</option>
+          <option value="Fonctionnaire">Fonctionnaire</option>
+          <option value="Menuisier(ere)">Menuisier(ere)</option>
+          <option value="Electricien(ne)">Electricien(ne)</option>
+          <option value="Plombier(ere)">Plombier(ere)</option>
+          <option value="Teinturier(ere)">Teinturier(ere)</option>
+          <option value="Photographe">Photographe</option>
+          <option value="Cordonnier(ere)">Cordonnier(ere)</option>
+          <option value="Poissonnier(ere)">Poissonnier(ere)</option>
+          <option value="Blanchisseur(se)">Blanchisseur(se)</option>
+          <option value="Infirmier(ere)">Infirmier(ere)</option>
+          <option value="Cuisinier(ere)">Cuisinier(ere)</option>
+          <option value="Pecheur(se)">Pecheur(se)</option>
+          <option value="Zemidjan">Zemidjan</option>
+          <option value="Soudeur(se)">Soudeur(se)</option>
+          <option value="Vulcanisateur(trice)">Vulcanisateur(trice)</option>
+          <option value="Eleveur(se)">Eleveur(se)</option>
+          <option value="Maraicher(ere)">Maraicher(ere)</option>
+          <option value="Sage-femme">Sage-femme</option>
+          <option value="Vendeur(se) de tissus">Vendeur(se) de tissus</option>
+          <option value="Sans emploi">Sans emploi</option>
+          <option value="Autre">Autre</option>
+        </select>
       </div>
     </div>
 
@@ -627,6 +667,7 @@ async function enregistrerReprise() {
       prenom_client: document.getElementById("rc-prenom").value.trim(),
       telephone_client: document.getElementById("rc-telephone").value.trim(),
       quartier_client: document.getElementById("rc-quartier").value.trim(),
+      profession_client: document.getElementById("rc-profession").value,
     };
   }
 
@@ -749,6 +790,7 @@ async function synchroniser() {
         prenom_client: reprise.prenom_client || null,
         telephone_client: reprise.telephone_client || null,
         quartier_client: reprise.quartier_client || null,
+        profession_client: reprise.profession_client || null,
         cycles_json: reprise.cycles,
       };
       const reponse = await fetch(`${SUPABASE_URL}/rest/v1/reprise_terrain_mivoo?on_conflict=id_local`, {
