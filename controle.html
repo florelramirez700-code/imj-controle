@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>IMJ Contrôle terrain</title>
+<link rel="manifest" href="manifest-controle.json">
+<meta name="theme-color" content="#002A7D">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #F6F9FB;
+    color: #212529;
+    padding-bottom: 40px;
+  }
+  .cache { display: none; }
+  .visible { display: block; }
+  header { background: #002A7D; color: white; padding: 16px 20px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .sous-titre { font-size: 12px; opacity: 0.8; }
+  main { padding: 16px; max-width: 480px; margin: 0 auto; }
+  .carte {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #E4E9F0;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .carte h2 { font-size: 16px; margin-bottom: 10px; color: #0548B3; }
+  label { display: block; font-size: 13px; color: #212529; margin: 10px 0 4px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #E4E9F0;
+    border-radius: 8px;
+    font-size: 15px;
+    background: #F2F2F1;
+    font-family: inherit;
+  }
+  button {
+    width: 100%;
+    padding: 13px;
+    background: #005FDE;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 14px;
+    cursor: pointer;
+  }
+  button.secondaire { background: transparent; color: #0548B3; border: 1px solid #0548B3; }
+  button.rouge { background: #DC2945; }
+  button.petit { width: auto; padding: 4px 10px; font-size: 11px; margin: 0 0 0 8px; }
+  .erreur { color: #DC2945; font-size: 13px; margin-top: 8px; }
+  .succes { color: #0D581A; font-size: 13px; margin-top: 8px; }
+  .discret { font-size: 12px; color: #6B6E76; }
+  .checkbox-ligne { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; }
+  .checkbox-ligne input { width: auto; }
+  .checkbox-ligne label { margin: 0; }
+  .ligne-carnet {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 0;
+    border-bottom: 1px solid #E4E9F0;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .ligne-carnet .nom { font-weight: 600; }
+  .ligne-carnet .detail { font-size: 12px; color: #6B6E76; }
+  .ligne-controle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid #E4E9F0;
+    font-size: 13px;
+  }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 12px; background: #E99A0C; color: white; white-space: nowrap; }
+  .badge.ok { background: #0D581A; }
+  .badge.rouge { background: #DC2945; }
+  .badge.gris { background: #6B6E76; }
+  .fiche-ligne { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 5px 0; border-bottom: 1px dashed #E4E9F0; }
+  .fiche-ligne span:first-child { color: #6B6E76; }
+  .fiche-ligne span:last-child { font-weight: 600; text-align: right; }
+  .resultat { border-radius: 10px; padding: 12px; margin-top: 12px; font-size: 14px; line-height: 1.5; }
+  .resultat.conforme { background: #E6F4EA; color: #0D581A; }
+  .resultat.ecart { background: #FDECEE; color: #A3162B; }
+  .resultat.neutre { background: #FFF3CD; color: #856404; }
+</style>
+</head>
+<body>
+
+<div id="ecran-connexion" class="visible">
+  <main style="padding-top: 60px;">
+    <div class="carte">
+      <h2 style="text-align:center; font-size:20px;">IMJ Contrôle terrain</h2>
+      <p class="discret" style="text-align:center; margin-bottom:10px;">Réservé au contrôleur d'IMJ</p>
+      <label>Code du contrôleur</label>
+      <input type="text" id="login-code" autocapitalize="characters" autocomplete="off" placeholder="ex : CT001">
+      <label>Mot de passe</label>
+      <input type="password" id="login-mdp">
+      <button onclick="seConnecter()">Se connecter</button>
+      <p id="login-message" class="erreur"></p>
+      <p class="discret" style="margin-top:14px;">Première connexion : Internet obligatoire. Ensuite, la page marche sans réseau.</p>
+    </div>
+  </main>
+</div>
+
+<div id="ecran-app" class="cache">
+  <header>
+    <h1>IMJ Contrôle terrain</h1>
+    <div class="sous-titre" id="header-nom"></div>
+  </header>
+
+  <main>
+    <div class="carte">
+      <h2>1. Avant de partir : la liste des carnets</h2>
+      <p id="liste-etat" class="discret"></p>
+      <button class="secondaire" onclick="mettreAJourListe()">Télécharger la liste (Internet)</button>
+      <p id="liste-message" class="succes"></p>
+    </div>
+
+    <div class="carte" id="carte-recherche">
+      <h2>2. Chez le client : trouver le carnet</h2>
+      <label>Agent</label>
+      <select id="recherche-agent" onchange="afficherResultats()"></select>
+      <label>Numéro du carnet ou nom du client</label>
+      <input type="search" id="recherche-texte" placeholder="ex : 3045 ou AKPON" oninput="afficherResultats()" autocomplete="off">
+      <p id="recherche-compte" class="discret" style="margin-top:8px;"></p>
+      <div id="recherche-resultats"></div>
+      <button id="bouton-carnet-absent" class="secondaire cache" onclick="ouvrirCarnetAbsent()">Ce carnet n'est pas dans la liste : le signaler</button>
+    </div>
+
+    <div class="carte cache" id="carte-fiche">
+      <h2 id="fiche-titre"></h2>
+      <div id="fiche-details"></div>
+      <div id="fiche-saisie">
+        <div class="checkbox-ligne">
+          <input type="checkbox" id="fiche-non-vu" onchange="basculerNonVu()">
+          <label for="fiche-non-vu">Le client n'a pas pu montrer son carnet</label>
+        </div>
+        <div id="fiche-bloc-valeur">
+          <label id="fiche-libelle-valeur"></label>
+          <input type="number" id="fiche-valeur" inputmode="numeric" min="0">
+        </div>
+        <label>Observation (ce que dit le client, ce que tu remarques)</label>
+        <textarea id="fiche-observation" rows="2"></textarea>
+        <button onclick="enregistrerControle()">Enregistrer ce contrôle</button>
+        <p id="fiche-message" class="erreur"></p>
+      </div>
+      <div id="fiche-resultat"></div>
+      <button class="secondaire" onclick="fermerFiche()">Revenir à la recherche</button>
+    </div>
+
+    <div class="carte">
+      <h2>3. Au retour : envoyer au bureau</h2>
+      <p id="controles-resume" class="discret"></p>
+      <div id="controles-liste"></div>
+      <button onclick="envoyerAuBureau()">Envoyer au bureau (Internet)</button>
+      <p id="envoi-message" class="succes"></p>
+    </div>
+
+    <button class="rouge" style="margin-top:20px;" onclick="seDeconnecter()">Se déconnecter</button>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = "https://kguscrexaptukrrgyymt.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtndXNjcmV4YXB0dWtycmd5eW10Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcxNzc5MzksImV4cCI6MjEwMjc1MzkzOX0.lT0P_-yZUXpXqdrSYckAsRh9SWtbN3tUiuzl1Y_nvU4";
+const DOMAINE_CONTROLEUR = "imj-controle.local";
+const TAILLE_PAGE = 1000;
+const MAX_RESULTATS = 40;
+const JOURS_GARDES = 7;
+
+let bdLocale;
+let sessionCourante = null;
+let carnets = [];        // la liste emportée, gardée en mémoire pour chercher vite
+let carnetOuvert = null; // le carnet affiché dans la fiche
+
+// --- Base gardée dans le téléphone ------------------------------------------
+
+function ouvrirBaseLocale() {
+  return new Promise((resolve, reject) => {
+    const requete = indexedDB.open("imj_controle_terrain", 1);
+    requete.onupgradeneeded = (e) => {
+      const bd = e.target.result;
+      if (!bd.objectStoreNames.contains("session")) bd.createObjectStore("session", { keyPath: "cle" });
+      if (!bd.objectStoreNames.contains("reglages")) bd.createObjectStore("reglages", { keyPath: "cle" });
+      if (!bd.objectStoreNames.contains("carnets")) bd.createObjectStore("carnets", { keyPath: "numero_carnet" });
+      if (!bd.objectStoreNames.contains("controles")) bd.createObjectStore("controles", { keyPath: "id_local" });
+    };
+    requete.onsuccess = (e) => { bdLocale = e.target.result; resolve(); };
+    requete.onerror = () => reject(requete.error);
+  });
+}
+
+function stockerObjet(magasin, objet) {
+  return new Promise((resolve, reject) => {
+    const tx = bdLocale.transaction(magasin, "readwrite");
+    tx.objectStore(magasin).put(objet);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function lireObjet(magasin, cle) {
+  return new Promise((resolve) => {
+    const requete = bdLocale.transaction(magasin, "readonly").objectStore(magasin).get(cle);
+    requete.onsuccess = () => resolve(requete.result || null);
+    requete.onerror = () => resolve(null);
+  });
+}
+
+function listerObjets(magasin) {
+  return new Promise((resolve) => {
+    const requete = bdLocale.transaction(magasin, "readonly").objectStore(magasin).getAll();
+    requete.onsuccess = () => resolve(requete.result || []);
+    requete.onerror = () => resolve([]);
+  });
+}
+
+function supprimerObjet(magasin, cle) {
+  return new Promise((resolve) => {
+    const tx = bdLocale.transaction(magasin, "readwrite");
+    tx.objectStore(magasin).delete(cle);
+    tx.oncomplete = () => resolve();
+  });
+}
+
+// Remplace d'un coup tout le contenu d'un magasin (tout ou rien).
+function remplacerMagasin(magasin, objets) {
+  return new Promise((resolve, reject) => {
+    const tx = bdLocale.transaction(magasin, "readwrite");
+    const store = tx.objectStore(magasin);
+    store.clear();
+    for (const objet of objets) store.put(objet);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// --- Petits outils -----------------------------------------------------------
+
+async function empreinte(code, motDePasse) {
+  const donnees = new TextEncoder().encode(`${code}:${motDePasse}`);
+  const hachage = await crypto.subtle.digest("SHA-256", donnees);
+  return Array.from(new Uint8Array(hachage)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function deuxChiffres(n) { return String(n).padStart(2, "0"); }
+
+function dateDuJour() {
+  const d = new Date();
+  return `${d.getFullYear()}-${deuxChiffres(d.getMonth() + 1)}-${deuxChiffres(d.getDate())}`;
+}
+
+function heureActuelle() {
+  const d = new Date();
+  return `${deuxChiffres(d.getHours())}:${deuxChiffres(d.getMinutes())}`;
+}
+
+function dateLisible(iso) {
+  if (!iso) return "-";
+  const [annee, mois, jour] = iso.slice(0, 10).split("-");
+  return `${jour}/${mois}/${annee}`;
+}
+
+function sansAccents(texte) {
+  return (texte || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+}
+
+function unite(typeCarnet) { return typeCarnet === "bloque" ? "F" : "case(s)"; }
+
+function element(balise, classe, texte) {
+  const el = document.createElement(balise);
+  if (classe) el.className = classe;
+  if (texte !== undefined) el.textContent = texte;
+  return el;
+}
+
+// --- Connexion -----------------------------------------------------------------
+
+async function seConnecter() {
+  const code = document.getElementById("login-code").value.trim().toUpperCase();
+  const motDePasse = document.getElementById("login-mdp").value;
+  const messageEl = document.getElementById("login-message");
+  messageEl.textContent = "";
+
+  if (!code || !motDePasse) {
+    messageEl.textContent = "Code et mot de passe obligatoires.";
+    return;
+  }
+
+  const empreinteSaisie = await empreinte(code, motDePasse);
+  const sessionExistante = await lireObjet("session", "controleur");
+  if (sessionExistante && sessionExistante.code === code && sessionExistante.empreinte === empreinteSaisie) {
+    // Reconnexion sans réseau : on fait confiance à la session gardée dans le téléphone.
+    afficherApp(sessionExistante);
+    return;
+  }
+
+  try {
+    const reponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: `${code.toLowerCase()}@${DOMAINE_CONTROLEUR}`, password: motDePasse }),
+    });
+    if (!reponse.ok) {
+      messageEl.textContent = "Code ou mot de passe incorrect.";
+      return;
+    }
+    const donnees = await reponse.json();
+    const metadonnees = (donnees.user && donnees.user.app_metadata) || {};
+    if (metadonnees.role !== "controleur") {
+      messageEl.textContent = "Cet accès n'est pas celui d'un contrôleur.";
+      return;
+    }
+    const session = {
+      cle: "controleur",
+      code: code,
+      nom: (donnees.user.user_metadata && donnees.user.user_metadata.nom) || code,
+      empreinte: empreinteSaisie,
+      access_token: donnees.access_token,
+      refresh_token: donnees.refresh_token,
+      expires_at: Date.now() + donnees.expires_in * 1000,
+    };
+    await stockerObjet("session", session);
+    afficherApp(session);
+  } catch (erreur) {
+    messageEl.textContent = "Pas de connexion Internet. Elle est nécessaire pour la première connexion.";
+  }
+}
+
+async function obtenirJeton() {
+  const session = await lireObjet("session", "controleur");
+  if (!session || !session.access_token) return null;
+  if (session.expires_at && Date.now() < session.expires_at - 60000) return session.access_token;
+  const reponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  });
+  if (!reponse.ok) return null;
+  const donnees = await reponse.json();
+  session.access_token = donnees.access_token;
+  session.refresh_token = donnees.refresh_token;
+  session.expires_at = Date.now() + donnees.expires_in * 1000;
+  await stockerObjet("session", session);
+  return session.access_token;
+}
+
+async function seDeconnecter() {
+  const enAttente = (await listerObjets("controles")).filter((c) => c.statut_local !== "envoye").length;
+  const avertissement = enAttente > 0
+    ? `${enAttente} contrôle(s) ne sont pas encore envoyés : ils restent dans le téléphone et partiront après la reconnexion.\n\n`
+    : "";
+  if (!confirm(`${avertissement}Se déconnecter ? Il faudra Internet pour se reconnecter.`)) return;
+  await supprimerObjet("session", "controleur");
+  sessionCourante = null;
+  document.getElementById("ecran-app").className = "cache";
+  document.getElementById("ecran-connexion").className = "visible";
+  document.getElementById("login-mdp").value = "";
+}
+
+async function afficherApp(session) {
+  sessionCourante = session;
+  document.getElementById("header-nom").textContent = `${session.nom} (${session.code})`;
+  document.getElementById("ecran-connexion").className = "cache";
+  document.getElementById("ecran-app").className = "visible";
+  await chargerListe();
+  await nettoyerVieuxControles();
+  await rafraichirControles();
+}
+
+// --- 1. La liste des carnets ---------------------------------------------------
+
+async function chargerListe() {
+  carnets = (await listerObjets("carnets")).sort((a, b) => a.numero_carnet - b.numero_carnet);
+  const etat = await lireObjet("reglages", "liste");
+  const etatEl = document.getElementById("liste-etat");
+  if (!etat || carnets.length === 0) {
+    etatEl.textContent = "Aucune liste dans ce téléphone. Télécharge-la au bureau, avec Internet, avant de partir.";
+  } else {
+    const d = new Date(etat.date);
+    etatEl.textContent = `Liste du ${dateLisible(etat.date)} à ${deuxChiffres(d.getHours())} h ${deuxChiffres(d.getMinutes())} : ${carnets.length} carnet(s). Télécharge-la à nouveau avant chaque tournée.`;
+  }
+
+  const selectAgent = document.getElementById("recherche-agent");
+  const choixPrecedent = selectAgent.value;
+  selectAgent.innerHTML = "";
+  selectAgent.appendChild(new Option("Tous les agents", ""));
+  const agents = new Map();
+  for (const c of carnets) agents.set(c.code_agent, c.nom_agent || c.code_agent);
+  for (const [code, nom] of [...agents.entries()].sort()) selectAgent.appendChild(new Option(`${code} — ${nom}`, code));
+  selectAgent.value = agents.has(choixPrecedent) ? choixPrecedent : "";
+  afficherResultats();
+}
+
+async function mettreAJourListe() {
+  const messageEl = document.getElementById("liste-message");
+  messageEl.className = "succes";
+  messageEl.textContent = "Téléchargement en cours...";
+  try {
+    const jeton = await obtenirJeton();
+    if (!jeton) {
+      messageEl.className = "erreur";
+      messageEl.textContent = "Ta connexion a expiré : déconnecte-toi puis reconnecte-toi avec Internet.";
+      return;
+    }
+    const recus = [];
+    for (let debut = 0; ; debut += TAILLE_PAGE) {
+      const reponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/controle_carnets?select=*&order=numero_carnet.asc&limit=${TAILLE_PAGE}&offset=${debut}`,
+        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${jeton}` } }
+      );
+      if (!reponse.ok) {
+        messageEl.className = "erreur";
+        messageEl.textContent = `Le bureau n'a pas pu donner la liste (réponse ${reponse.status}). La liste d'avant est gardée.`;
+        return;
+      }
+      const page = await reponse.json();
+      recus.push(...page);
+      if (page.length < TAILLE_PAGE) break;
+    }
+    if (recus.length === 0) {
+      messageEl.className = "erreur";
+      messageEl.textContent = "Le bureau n'a encore envoyé aucun carnet. La liste d'avant est gardée.";
+      return;
+    }
+    await remplacerMagasin("carnets", recus);
+    await stockerObjet("reglages", { cle: "liste", date: new Date().toISOString(), nombre: recus.length });
+    await chargerListe();
+    messageEl.textContent = `${recus.length} carnet(s) dans le téléphone. Tu peux partir sans réseau.`;
+  } catch (erreur) {
+    messageEl.className = "erreur";
+    messageEl.textContent = "Pas de connexion Internet : la liste d'avant est gardée.";
+  }
+}
+
+// --- 2. Trouver un carnet ------------------------------------------------------
+
+async function afficherResultats() {
+  const conteneur = document.getElementById("recherche-resultats");
+  const compteEl = document.getElementById("recherche-compte");
+  const boutonAbsent = document.getElementById("bouton-carnet-absent");
+  conteneur.innerHTML = "";
+  boutonAbsent.className = "secondaire cache";
+
+  const agent = document.getElementById("recherche-agent").value;
+  const texte = sansAccents(document.getElementById("recherche-texte").value.trim());
+  if (carnets.length === 0) { compteEl.textContent = ""; return; }
+
+  const controlesDuJour = new Set(
+    (await listerObjets("controles")).filter((c) => c.date_controle === dateDuJour()).map((c) => c.numero_carnet)
+  );
+  const duBonAgent = carnets.filter((c) => !agent || c.code_agent === agent);
+  if (!texte) {
+    const faits = duBonAgent.filter((c) => controlesDuJour.has(c.numero_carnet)).length;
+    compteEl.textContent = `${duBonAgent.length} carnet(s), dont ${faits} contrôlé(s) aujourd'hui. Tape un numéro ou un nom.`;
+    return;
+  }
+
+  const trouves = duBonAgent.filter((c) => String(c.numero_carnet).startsWith(texte) || sansAccents(c.nom_client).includes(texte));
+  compteEl.textContent = trouves.length > MAX_RESULTATS
+    ? `${trouves.length} carnets trouvés : précise ta recherche (les ${MAX_RESULTATS} premiers sont affichés).`
+    : `${trouves.length} carnet(s) trouvé(s).`;
+  for (const carnet of trouves.slice(0, MAX_RESULTATS)) {
+    const ligne = element("div", "ligne-carnet");
+    const gauche = element("div");
+    gauche.appendChild(element("div", "nom", `${carnet.numero_carnet} — ${carnet.nom_client}`));
+    gauche.appendChild(element("div", "detail", `${carnet.code_agent} · ${carnet.type_carnet === "bloque" ? "bloqué" : "ordinaire"}${carnet.quartier ? " · " + carnet.quartier : ""}`));
+    ligne.appendChild(gauche);
+    if (controlesDuJour.has(carnet.numero_carnet)) ligne.appendChild(element("span", "badge ok", "Contrôlé"));
+    ligne.onclick = () => ouvrirCarnet(carnet);
+    conteneur.appendChild(ligne);
+  }
+  if (trouves.length === 0 && /^[0-9]+$/.test(texte)) boutonAbsent.className = "secondaire visible";
+}
+
+function ligneFiche(libelle, valeur) {
+  const ligne = element("div", "fiche-ligne");
+  ligne.appendChild(element("span", null, libelle));
+  ligne.appendChild(element("span", null, valeur));
+  return ligne;
+}
+
+function ouvrirCarnet(carnet) {
+  carnetOuvert = carnet;
+  document.getElementById("fiche-titre").textContent = `Carnet ${carnet.numero_carnet}`;
+  const details = document.getElementById("fiche-details");
+  details.innerHTML = "";
+  if (carnet.absent_de_la_liste) {
+    details.appendChild(element("p", "resultat neutre", "Ce carnet n'est pas dans la liste du bureau. Note ce que tu vois : le bureau cherchera pourquoi."));
+  } else {
+    details.appendChild(ligneFiche("Client", carnet.nom_client));
+    if (carnet.telephone) details.appendChild(ligneFiche("Téléphone", carnet.telephone));
+    if (carnet.quartier) details.appendChild(ligneFiche("Quartier", carnet.quartier));
+    details.appendChild(ligneFiche("Agent", `${carnet.code_agent}${carnet.nom_agent ? " — " + carnet.nom_agent : ""}`));
+    details.appendChild(ligneFiche("Type de carnet", carnet.type_carnet === "bloque" ? "Bloqué" : "Ordinaire"));
+    details.appendChild(ligneFiche("Mise", carnet.mise ? `${carnet.mise} F` : "-"));
+    if (carnet.type_carnet !== "bloque") details.appendChild(ligneFiche("Page commencée le", dateLisible(carnet.page_du)));
+    details.appendChild(ligneFiche("Crédit en cours", carnet.credit_restant ? `${carnet.credit_restant} F à rembourser` : "aucun"));
+  }
+
+  document.getElementById("fiche-libelle-valeur").textContent = carnet.type_carnet === "bloque"
+    ? "Montant total versé, lu sur le carnet (F)"
+    : "Cases cochées sur la page en cours du carnet (0 à 31)";
+  document.getElementById("fiche-valeur").value = "";
+  document.getElementById("fiche-observation").value = "";
+  document.getElementById("fiche-non-vu").checked = false;
+  document.getElementById("fiche-message").textContent = "";
+  document.getElementById("fiche-resultat").innerHTML = "";
+  document.getElementById("fiche-saisie").className = "visible";
+  basculerNonVu();
+  document.getElementById("carte-recherche").className = "carte cache";
+  document.getElementById("carte-fiche").className = "carte visible";
+  window.scrollTo(0, 0);
+}
+
+function ouvrirCarnetAbsent() {
+  const numero = parseInt(document.getElementById("recherche-texte").value.trim());
+  if (!numero) return;
+  ouvrirCarnet({
+    numero_carnet: numero, absent_de_la_liste: true, nom_client: "", type_carnet: "ordinaire",
+    code_agent: document.getElementById("recherche-agent").value || null, valeur_logiciel: null,
+  });
+}
+
+function basculerNonVu() {
+  const nonVu = document.getElementById("fiche-non-vu").checked;
+  document.getElementById("fiche-bloc-valeur").className = nonVu ? "cache" : "visible";
+}
+
+function fermerFiche() {
+  carnetOuvert = null;
+  document.getElementById("carte-fiche").className = "carte cache";
+  document.getElementById("carte-recherche").className = "carte visible";
+  document.getElementById("recherche-texte").value = "";
+  afficherResultats();
+}
+
+async function enregistrerControle() {
+  const messageEl = document.getElementById("fiche-message");
+  messageEl.textContent = "";
+  const carnet = carnetOuvert;
+  if (!carnet) return;
+
+  const nonVu = document.getElementById("fiche-non-vu").checked;
+  const observation = document.getElementById("fiche-observation").value.trim();
+  const saisie = document.getElementById("fiche-valeur").value.trim();
+  let valeurVue = null;
+
+  if (!nonVu) {
+    if (!/^[0-9]+$/.test(saisie)) {
+      messageEl.textContent = "Tape ce que tu vois sur le carnet (un nombre), ou coche la case si le client ne l'a pas montré.";
+      return;
+    }
+    valeurVue = parseInt(saisie);
+    if (carnet.type_carnet !== "bloque" && valeurVue > 31) {
+      messageEl.textContent = "Une page de carnet a 31 cases : le nombre ne peut pas dépasser 31.";
+      return;
+    }
+  }
+  if ((nonVu || carnet.absent_de_la_liste) && !observation) {
+    messageEl.textContent = "Écris une observation : pourquoi le carnet n'a pas été vu, ou le nom du client pour un carnet absent de la liste.";
+    return;
+  }
+
+  const dejaFait = (await listerObjets("controles")).find((c) => c.numero_carnet === carnet.numero_carnet && c.date_controle === dateDuJour());
+  if (dejaFait && !confirm("Ce carnet a déjà été contrôlé aujourd'hui. Enregistrer un deuxième contrôle ?")) return;
+
+  const controle = {
+    id_local: crypto.randomUUID(),
+    code_controleur: sessionCourante.code,
+    nom_controleur: sessionCourante.nom,
+    date_controle: dateDuJour(),
+    heure_controle: heureActuelle(),
+    numero_carnet: carnet.numero_carnet,
+    code_agent: carnet.code_agent || null,
+    nom_client: carnet.nom_client || null,
+    type_carnet: carnet.type_carnet,
+    valeur_logiciel: carnet.valeur_logiciel === undefined ? null : carnet.valeur_logiciel,
+    valeur_vue: valeurVue,
+    carnet_vu: !nonVu,
+    observation: observation || null,
+    statut_local: "en_attente",
+  };
+  await stockerObjet("controles", controle);
+
+  // Le chiffre du logiciel n'est montré qu'après la saisie, pour que le
+  // contrôleur compte d'abord ce qu'il voit.
+  document.getElementById("fiche-saisie").className = "cache";
+  const resultat = document.getElementById("fiche-resultat");
+  resultat.innerHTML = "";
+  resultat.appendChild(blocResultat(controle));
+  await rafraichirControles();
+}
+
+function ecartDe(controle) {
+  if (!controle.carnet_vu || controle.valeur_vue === null || controle.valeur_logiciel === null) return null;
+  return controle.valeur_vue - controle.valeur_logiciel;
+}
+
+function blocResultat(controle) {
+  const ecart = ecartDe(controle);
+  const u = unite(controle.type_carnet);
+  if (!controle.carnet_vu) return element("div", "resultat neutre", "Contrôle enregistré : carnet non présenté par le client.");
+  if (ecart === null) return element("div", "resultat neutre", `Contrôle enregistré : ${controle.valeur_vue} ${u} sur le carnet. Le logiciel ne connaît pas ce carnet.`);
+  if (ecart === 0) return element("div", "resultat conforme", `Contrôle enregistré. Carnet : ${controle.valeur_vue} ${u} — logiciel : ${controle.valeur_logiciel} ${u}. Aucun écart.`);
+  const sens = ecart > 0 ? "Le carnet montre PLUS que le logiciel." : "Le carnet montre MOINS que le logiciel.";
+  return element("div", "resultat ecart", `Contrôle enregistré. Carnet : ${controle.valeur_vue} ${u} — logiciel : ${controle.valeur_logiciel} ${u}. Écart : ${ecart > 0 ? "+" : ""}${ecart} ${u}. ${sens} Demande au client la date de sa dernière mise et note-la.`);
+}
+
+// --- 3. Envoyer au bureau ------------------------------------------------------
+
+async function nettoyerVieuxControles() {
+  const limite = new Date(Date.now() - JOURS_GARDES * 24 * 3600 * 1000);
+  const dateLimite = `${limite.getFullYear()}-${deuxChiffres(limite.getMonth() + 1)}-${deuxChiffres(limite.getDate())}`;
+  for (const controle of await listerObjets("controles")) {
+    if (controle.statut_local === "envoye" && controle.date_controle < dateLimite) await supprimerObjet("controles", controle.id_local);
+  }
+}
+
+async function rafraichirControles() {
+  const tous = (await listerObjets("controles")).sort((a, b) => (a.date_controle + a.heure_controle < b.date_controle + b.heure_controle ? 1 : -1));
+  const enAttente = tous.filter((c) => c.statut_local !== "envoye");
+  const duJour = tous.filter((c) => c.date_controle === dateDuJour());
+  const ecartsDuJour = duJour.filter((c) => ecartDe(c) !== null && ecartDe(c) !== 0).length;
+  document.getElementById("controles-resume").textContent =
+    `Aujourd'hui : ${duJour.length} carnet(s) contrôlé(s), ${ecartsDuJour} avec un écart. À envoyer : ${enAttente.length}.`;
+
+  const conteneur = document.getElementById("controles-liste");
+  conteneur.innerHTML = "";
+  for (const controle of tous.filter((c) => c.statut_local !== "envoye" || c.date_controle === dateDuJour())) {
+    const ligne = element("div", "ligne-controle");
+    const ecart = ecartDe(controle);
+    let detail = "non présenté";
+    if (controle.carnet_vu) detail = ecart === null ? `${controle.valeur_vue} ${unite(controle.type_carnet)}` : (ecart === 0 ? "aucun écart" : `écart ${ecart > 0 ? "+" : ""}${ecart}`);
+    ligne.appendChild(element("span", null, `${controle.heure_controle} · carnet ${controle.numero_carnet} · ${detail}`));
+    const droite = element("span");
+    droite.style.display = "flex";
+    droite.style.alignItems = "center";
+    if (controle.statut_local === "envoye") {
+      droite.appendChild(element("span", "badge ok", "Envoyé"));
+    } else {
+      droite.appendChild(element("span", "badge", "À envoyer"));
+      const supprimer = element("button", "rouge petit", "Suppr.");
+      supprimer.onclick = async () => {
+        if (!confirm(`Supprimer le contrôle du carnet ${controle.numero_carnet} (pas encore envoyé) ?`)) return;
+        await supprimerObjet("controles", controle.id_local);
+        rafraichirControles();
+        afficherResultats();
+      };
+      droite.appendChild(supprimer);
+    }
+    ligne.appendChild(droite);
+    conteneur.appendChild(ligne);
+  }
+  if (conteneur.children.length === 0) conteneur.appendChild(element("p", "discret", "Aucun contrôle pour l'instant."));
+}
+
+let envoiEnCours = false;
+
+async function envoyerAuBureau() {
+  // Un seul envoi à la fois, même si le bouton est touché deux fois.
+  if (envoiEnCours) return;
+  envoiEnCours = true;
+  try {
+    await envoyerLesControles();
+  } finally {
+    envoiEnCours = false;
+  }
+}
+
+async function envoyerLesControles() {
+  const messageEl = document.getElementById("envoi-message");
+  messageEl.className = "succes";
+  const enAttente = (await listerObjets("controles")).filter((c) => c.statut_local !== "envoye");
+  if (enAttente.length === 0) {
+    messageEl.textContent = "Rien à envoyer : tout est déjà au bureau.";
+    return;
+  }
+  messageEl.textContent = "Envoi en cours...";
+
+  let jeton = null;
+  try { jeton = await obtenirJeton(); } catch (erreur) { jeton = undefined; }
+  if (jeton === undefined) {
+    messageEl.className = "erreur";
+    messageEl.textContent = `Pas de connexion Internet : ${enAttente.length} contrôle(s) restent dans le téléphone. Réessaie au bureau.`;
+    return;
+  }
+  if (jeton === null) {
+    messageEl.className = "erreur";
+    messageEl.textContent = "Ta connexion a expiré : déconnecte-toi puis reconnecte-toi avec Internet. Tes contrôles restent dans le téléphone.";
+    return;
+  }
+
+  let envoyes = 0;
+  let echecs = 0;
+  for (const controle of enAttente) {
+    const { statut_local, ...corps } = controle;
+    try {
+      const reponse = await fetch(`${SUPABASE_URL}/rest/v1/controles_terrain?on_conflict=id_local`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${jeton}`,
+          "Content-Type": "application/json", Prefer: "resolution=ignore-duplicates,return=minimal",
+        },
+        body: JSON.stringify(corps),
+      });
+      // 409 : le bureau a déjà ce contrôle (envoi précédent coupé avant la réponse).
+      if (reponse.ok || reponse.status === 409) {
+        controle.statut_local = "envoye";
+        await stockerObjet("controles", controle);
+        envoyes++;
+      } else {
+        echecs++;
+      }
+    } catch (erreur) {
+      echecs++;
+    }
+  }
+  if (echecs > 0) messageEl.className = "erreur";
+  messageEl.textContent = echecs > 0
+    ? `${envoyes} contrôle(s) envoyé(s), ${echecs} pas encore parti(s) : ils restent dans le téléphone, réessaie.`
+    : `${envoyes} contrôle(s) envoyé(s) au bureau.`;
+  rafraichirControles();
+}
+
+// --- Démarrage -----------------------------------------------------------------
+
+(async () => {
+  await ouvrirBaseLocale();
+  const session = await lireObjet("session", "controleur");
+  if (session) afficherApp(session);
+})();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
