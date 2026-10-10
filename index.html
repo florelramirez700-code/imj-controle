@@ -438,6 +438,24 @@ const CARNETS_CONNUS = [
 let bdLocale;
 let compteurCycles = 0;
 
+// Un reseau qui "accroche" sans couper ne doit pas bloquer la page : au bout du delai, l'appel est abandonne.
+async function fetchAvecDelai(url, options = {}, delaiMs = 30000) {
+  const controleur = new AbortController();
+  const minuteur = setTimeout(() => controleur.abort(), delaiMs);
+  try {
+    return await fetch(url, { ...options, signal: controleur.signal });
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+// Empreinte du mot de passe pour la reconnexion sans reseau : le mot de passe lui-meme n'est JAMAIS garde dans le telephone.
+async function empreinteMotDePasse(motDePasse) {
+  const donnees = new TextEncoder().encode(`admin:${motDePasse}`);
+  const hachage = await crypto.subtle.digest("SHA-256", donnees);
+  return Array.from(new Uint8Array(hachage)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function ouvrirBaseLocale() {
   return new Promise((resolve, reject) => {
     const requete = indexedDB.open("imj_reprise_terrain", 1);
@@ -504,11 +522,11 @@ async function obtenirTokenValide() {
   const maintenant = Date.now();
   if (session.expires_at && maintenant < session.expires_at - 60000) return session.access_token;
   try {
-    const reponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+    const reponse = await fetchAvecDelai(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
       method: "POST",
       headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: session.refresh_token }),
-    });
+    }, 8000);
     if (!reponse.ok) return session.access_token;
     const donnees = await reponse.json();
     session.access_token = donnees.access_token;
@@ -536,8 +554,9 @@ async function seConnecter() {
     return;
   }
 
+  const empreinte = await empreinteMotDePasse(motDePasse);
   const sessionExistante = await lireObjet("session", "admin");
-  if (sessionExistante && sessionExistante.mot_de_passe_verifie === motDePasse) {
+  if (sessionExistante && sessionExistante.empreinte_mot_de_passe === empreinte) {
     afficherApp();
     return;
   }
@@ -555,7 +574,7 @@ async function seConnecter() {
     const donnees = await reponse.json();
     const session = {
       cle: "admin",
-      mot_de_passe_verifie: motDePasse,
+      empreinte_mot_de_passe: empreinte,
       access_token: donnees.access_token,
       refresh_token: donnees.refresh_token,
       expires_at: Date.now() + donnees.expires_in * 1000,
@@ -877,11 +896,11 @@ async function synchroniser() {
         profession_client: reprise.profession_client || null,
         cycles_json: reprise.cycles,
       };
-      const reponse = await fetch(`${SUPABASE_URL}/rest/v1/reprise_terrain_mivoo?on_conflict=id_local`, {
+      const reponse = await fetchAvecDelai(`${SUPABASE_URL}/rest/v1/reprise_terrain_mivoo?on_conflict=id_local`, {
         method: "POST",
         headers,
         body: JSON.stringify(corps),
-      });
+      }, 30000);
       if (reponse.ok) {
         reprise.statut_local = "importe";
         await stockerObjet("reprises", reprise);
@@ -901,6 +920,12 @@ async function synchroniser() {
 (async () => {
   await ouvrirBaseLocale();
   const session = await lireObjet("session", "admin");
+  if (session && session.mot_de_passe_verifie) {
+    // Anciennes versions : le mot de passe etait garde en clair -> remplace par son empreinte.
+    session.empreinte_mot_de_passe = await empreinteMotDePasse(session.mot_de_passe_verifie);
+    delete session.mot_de_passe_verifie;
+    await stockerObjet("session", session);
+  }
   if (session) afficherApp();
 })();
 </script>

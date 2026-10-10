@@ -184,6 +184,18 @@ let carnetOuvert = null; // le carnet affiché dans la fiche
 
 // --- Base gardée dans le téléphone ------------------------------------------
 
+// Un reseau qui "accroche" sans couper ne doit pas bloquer la page : au bout du delai, l'appel est abandonne.
+async function fetchAvecDelai(url, options = {}, delaiMs = 30000) {
+  const controleur = new AbortController();
+  const minuteur = setTimeout(() => controleur.abort(), delaiMs);
+  try {
+    return await fetch(url, { ...options, signal: controleur.signal });
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+
 function ouvrirBaseLocale() {
   return new Promise((resolve, reject) => {
     const requete = indexedDB.open("imj_controle_terrain", 1);
@@ -340,11 +352,11 @@ async function obtenirJeton() {
   const session = await lireObjet("session", "controleur");
   if (!session || !session.access_token) return null;
   if (session.expires_at && Date.now() < session.expires_at - 60000) return session.access_token;
-  const reponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+  const reponse = await fetchAvecDelai(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
     method: "POST",
     headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: session.refresh_token }),
-  });
+  }, 8000);
   if (!reponse.ok) return null;
   const donnees = await reponse.json();
   session.access_token = donnees.access_token;
@@ -414,9 +426,10 @@ async function mettreAJourListe() {
     }
     const recus = [];
     for (let debut = 0; ; debut += TAILLE_PAGE) {
-      const reponse = await fetch(
+      const reponse = await fetchAvecDelai(
         `${SUPABASE_URL}/rest/v1/controle_carnets?select=*&order=numero_carnet.asc&limit=${TAILLE_PAGE}&offset=${debut}`,
-        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${jeton}` } }
+        { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${jeton}` } },
+        20000
       );
       if (!reponse.ok) {
         messageEl.className = "erreur";
@@ -544,7 +557,20 @@ function fermerFiche() {
   afficherResultats();
 }
 
+let controleEnCours = false;
+
 async function enregistrerControle() {
+  // Un seul enregistrement à la fois, même si le bouton est touché deux fois.
+  if (controleEnCours) return;
+  controleEnCours = true;
+  try {
+    await enregistrerControleInterne();
+  } finally {
+    controleEnCours = false;
+  }
+}
+
+async function enregistrerControleInterne() {
   const messageEl = document.getElementById("fiche-message");
   messageEl.textContent = "";
   const carnet = carnetOuvert;
@@ -705,14 +731,14 @@ async function envoyerLesControles() {
   for (const controle of enAttente) {
     const { statut_local, ...corps } = controle;
     try {
-      const reponse = await fetch(`${SUPABASE_URL}/rest/v1/controles_terrain?on_conflict=id_local`, {
+      const reponse = await fetchAvecDelai(`${SUPABASE_URL}/rest/v1/controles_terrain?on_conflict=id_local`, {
         method: "POST",
         headers: {
           apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${jeton}`,
           "Content-Type": "application/json", Prefer: "resolution=ignore-duplicates,return=minimal",
         },
         body: JSON.stringify(corps),
-      });
+      }, 30000);
       // 409 : le bureau a déjà ce contrôle (envoi précédent coupé avant la réponse).
       if (reponse.ok || reponse.status === 409) {
         controle.statut_local = "envoye";
