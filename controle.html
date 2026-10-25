@@ -6,6 +6,12 @@
 <title>IMJ Contrôle terrain</title>
 <link rel="manifest" href="manifest-controle.json">
 <meta name="theme-color" content="#002A7D">
+<script>
+// Cette page est l'onglet "Controle terrain" de IMJ Controle (index.html).
+// Ouverte seule (ancienne icone sur l'ecran du telephone), elle renvoie vers l'appli complete.
+if (window.top === window.self) location.replace("index.html#controle");
+else document.documentElement.classList.add("integre");
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -91,6 +97,9 @@
   .resultat.conforme { background: #E6F4EA; color: #0D581A; }
   .resultat.ecart { background: #FDECEE; color: #A3162B; }
   .resultat.neutre { background: #FFF3CD; color: #856404; }
+  /* Dans IMJ Controle, le bandeau du haut est celui de l'appli : on ne garde que le nom du controleur. */
+  .integre header { padding: 8px 20px; }
+  .integre header h1 { display: none; }
 </style>
 </head>
 <body>

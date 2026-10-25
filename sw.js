@@ -1,11 +1,13 @@
-// IMJ Controle terrain -- permet a la page du controleur de s'ouvrir sans reseau.
+// IMJ Controle -- permet a l'appli (onglets Reprise des carnets et Controle terrain) de s'ouvrir sans reseau.
 //
 // Strategie "reseau d'abord" : avec internet, on charge toujours la derniere
 // version (les mises a jour arrivent normalement) et on en garde une copie ;
 // sans internet, on sert la derniere copie gardee.
 // Les appels a Supabase (autre adresse) ne sont JAMAIS touches ni gardes.
-const CACHE = "imj-controle-terrain-v2";
-const FICHIERS = ["controle.html", "manifest-controle.json", "logo.png"];
+// Les saisies en attente sont dans les bases du telephone (IndexedDB), pas ici :
+// une mise a jour de ce fichier ne les touche pas.
+const CACHE = "imj-controle-terrain-v3";
+const FICHIERS = ["index.html", "reprise.html", "controle.html", "manifest-controle.json", "logo.png"];
 
 self.addEventListener("install", (evenement) => {
   evenement.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FICHIERS)));
@@ -48,7 +50,10 @@ self.addEventListener("fetch", (evenement) => {
         new Promise((_, rejeter) => setTimeout(() => rejeter(new Error("delai")), DELAI_RESEAU_MS)),
       ]);
     } catch (erreur) {
-      const enCache = await caches.match(requete, { ignoreSearch: true }) || await caches.match("controle.html");
+      // Une adresse inconnue ouverte en plein ecran recoit l'appli ; jamais dans un onglet
+      // (sinon l'appli s'afficherait dans elle-meme).
+      const enCache = await caches.match(requete, { ignoreSearch: true })
+        || (requete.destination === "document" ? await caches.match("index.html") : undefined);
       if (enCache) return enCache;
       return reseau;
     }
